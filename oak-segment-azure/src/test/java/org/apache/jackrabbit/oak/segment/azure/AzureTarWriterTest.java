@@ -17,6 +17,7 @@
 package org.apache.jackrabbit.oak.segment.azure;
 
 import com.azure.storage.blob.BlobContainerClient;
+import org.apache.jackrabbit.oak.segment.azure.AzureSegmentArchiveWriter;
 import org.apache.jackrabbit.oak.segment.file.tar.TarWriterTest;
 import org.apache.jackrabbit.oak.segment.remote.WriteAccessController;
 import org.apache.jackrabbit.oak.segment.spi.monitor.IOMonitorAdapter;
@@ -58,7 +59,7 @@ public class AzureTarWriterTest extends TarWriterTest {
         writeAccessController.enableWriting();
         return new AzureArchiveManager(readBlobContainerClient, writeBlobContainerClient, "oak", new IOMonitorAdapter(), monitor, writeAccessController) {
             @Override
-            public SegmentArchiveWriter create(String archiveName) throws IOException {
+            public @NotNull SegmentArchiveWriter create(@NotNull String archiveName) throws IOException {
                 return new AzureSegmentArchiveWriter(writeBlobContainerClient, "oak", archiveName, ioMonitor, monitor, writeAccessController) {
                     @Override
                     public void writeGraph(@NotNull byte[] data) throws IOException {

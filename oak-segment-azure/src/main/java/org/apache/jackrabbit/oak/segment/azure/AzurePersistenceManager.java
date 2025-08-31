@@ -34,11 +34,11 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 
+import static org.apache.jackrabbit.oak.segment.azure.AzureHybridArchiveManager.WriteMode.TAR_FILE;
 import static org.apache.jackrabbit.oak.segment.azure.AzureUtilities.AZURE_CLIENT_ID;
 import static org.apache.jackrabbit.oak.segment.azure.AzureUtilities.AZURE_CLIENT_SECRET;
 import static org.apache.jackrabbit.oak.segment.azure.AzureUtilities.AZURE_TENANT_ID;
 import static org.apache.jackrabbit.oak.segment.azure.AzureUtilities.AZURE_SECRET_KEY;
-
 
 public class AzurePersistenceManager {
 
@@ -194,7 +194,7 @@ public class AzurePersistenceManager {
 
         final String rootPrefixNormalized = normalizePath(rootPrefix);
 
-        return new AzurePersistence(blobContainerClient, writeContainerClient, noRetryBlobContainerClient, rootPrefixNormalized, azureHttpRequestLoggingPolicy, null);
+        return new AzurePersistence(blobContainerClient, writeContainerClient, noRetryBlobContainerClient, rootPrefixNormalized, TAR_FILE, azureHttpRequestLoggingPolicy, null);
     }
 
     private static RequestRetryOptions readRequestRetryOptions(boolean enableSecondaryLocation, String accountName) {

@@ -21,6 +21,8 @@ import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.models.ListBlobsOptions;
 import com.azure.storage.blob.specialized.BlockBlobClient;
 import org.apache.jackrabbit.oak.commons.Buffer;
+import org.apache.jackrabbit.oak.segment.azure.AzureBlobMetadata;
+import org.apache.jackrabbit.oak.segment.azure.AzureUtilities;
 import org.apache.jackrabbit.oak.segment.remote.AbstractRemoteSegmentArchiveReader;
 import org.apache.jackrabbit.oak.segment.spi.monitor.IOMonitor;
 import org.jetbrains.annotations.NotNull;

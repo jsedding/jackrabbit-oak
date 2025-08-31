@@ -21,6 +21,8 @@ import org.apache.jackrabbit.oak.commons.Buffer;
 import org.apache.jackrabbit.oak.segment.spi.persistence.persistentcache.AbstractPersistentCache;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.Executor;
@@ -32,6 +34,8 @@ import java.util.function.Supplier;
 import static org.junit.Assert.*;
 
 public abstract class AbstractPersistentCacheTest {
+
+    private static final Logger LOG = LoggerFactory.getLogger(AbstractPersistentCacheTest.class);
 
     protected static final int SEGMENTS = 750;
     protected static final int THREADS = 50;
@@ -191,6 +195,7 @@ public abstract class AbstractPersistentCacheTest {
                 }
             } catch (Throwable t) {
                 errors.incrementAndGet();
+                LOG.error("Error recorded", t);
             } finally {
                 done.incrementAndGet();
             }

@@ -23,6 +23,8 @@ import com.azure.storage.blob.models.BlobStorageException;
 import org.apache.jackrabbit.oak.commons.Buffer;
 import org.apache.jackrabbit.oak.segment.SegmentId;
 import org.apache.jackrabbit.oak.segment.SegmentNotFoundException;
+import org.apache.jackrabbit.oak.segment.azure.AzureSegmentArchiveReader;
+import org.apache.jackrabbit.oak.segment.azure.AzureSegmentArchiveWriter;
 import org.apache.jackrabbit.oak.segment.file.FileStore;
 import org.apache.jackrabbit.oak.segment.file.InvalidFileStoreVersionException;
 import org.apache.jackrabbit.oak.segment.spi.RepositoryNotReachableException;
