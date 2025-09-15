@@ -28,6 +28,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.commons.collections.IterableUtils;
@@ -183,7 +184,7 @@ public class ModifiedNodeState extends AbstractNodeState {
                 deleted++;
             }
         }
-        // if we deleted 100 entries, then we need to 
+        // if we deleted 100 entries, then we need to
         // be sure there are 100 more entries than max
         if (max + deleted < 0) {
             // avoid overflow
@@ -211,7 +212,7 @@ public class ModifiedNodeState extends AbstractNodeState {
             if (copy) {
                 nodes = new HashMap<>(nodes);
             }
-            final Set<String> keys = nodes.keySet(); 
+            final Set<String> keys = nodes.keySet();
             return IterableUtils.chainedIterable(
                     IterableUtils.filter(base.getChildNodeNames(), x -> !keys.contains(x)),
                     MapUtils.filterValues(nodes, NodeState.EXISTS).keySet());
@@ -252,16 +253,16 @@ public class ModifiedNodeState extends AbstractNodeState {
         if (requireNonNull(properties).isEmpty()) {
             this.properties = emptyMap();
         } else {
-            this.properties = new HashMap<>(properties);
+            this.properties = Map.copyOf(properties);
         }
 
         if (requireNonNull(nodes).isEmpty()) {
             this.nodes = emptyMap();
         } else {
-            this.nodes = new HashMap<>();
-            for (Entry<String, MutableNodeState> entry : nodes.entrySet()) {
-                this.nodes.put(entry.getKey(), entry.getValue().snapshot());
-            }
+            Entry<String, NodeState>[] entries = nodes.entrySet().stream()
+                    .map(e -> Map.entry(e.getKey(), e.getValue().snapshot()))
+                    .toArray(Entry[]::new);
+            this.nodes = Map.ofEntries(entries);
         }
     }
 

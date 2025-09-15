@@ -204,7 +204,7 @@ public class AuthorizationConfigurationImpl extends ConfigurationBase implements
         RestrictionProvider restrictionProvider = getParameters().getConfigValue(AccessControlConstants.PARAM_RESTRICTION_PROVIDER, null, RestrictionProvider.class);
         if (restrictionProvider == null) {
             // default
-            restrictionProvider = new RestrictionProviderImpl();
+            restrictionProvider = RestrictionProviderImpl.INSTANCE;
         }
         return restrictionProvider;
     }

@@ -31,6 +31,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.security.auth.Subject;
 
@@ -86,7 +88,7 @@ class MutableRoot implements Root, PermissionAware {
     private final Subject subject;
 
     private final SecurityProvider securityProvider;
-    
+
     private final QueryEngineSettings queryEngineSettings;
 
     private final QueryIndexProvider indexProvider;
@@ -385,11 +387,17 @@ class MutableRoot implements Root, PermissionAware {
         return securityProvider.getConfiguration(AuthorizationConfiguration.class);
     }
 
+    @SuppressWarnings("unchecked")
     private static Map<String, Object> newInfoWithCommitContext(Map<String, Object> info){
-        Map<String, Object> builder = new HashMap<>();
-        builder.putAll(info);
-        builder.put(CommitContext.NAME, new SimpleCommitContext());
-        return Collections.unmodifiableMap(builder);
+        Map.Entry<String, Object>[] entries = new Map.Entry[info.size() + 1];
+        int pos = 0;
+        for (Map.Entry<String, Object> entry : info.entrySet()) {
+            entries[pos++] = entry;
+        }
+        entries[pos] = Map.entry(CommitContext.NAME, new SimpleCommitContext());
+        return Map.ofEntries(entries);
+
+
     }
 
     //--------------------------------------------------------------------------------------------< PermissionAware >---

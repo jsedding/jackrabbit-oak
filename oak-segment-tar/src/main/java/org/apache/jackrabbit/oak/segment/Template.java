@@ -185,6 +185,7 @@ public class Template {
     PropertyTemplate getPropertyTemplate(String name) {
         int hash = name.hashCode();
         int index = 0;
+        // TODO - profiling shows that String.hashCode() here is very expensive in SetPropertyTest benchmark (i.e. it is called frequently)
         while (index < properties.length
                 && properties[index].getName().hashCode() < hash) {
             index++;

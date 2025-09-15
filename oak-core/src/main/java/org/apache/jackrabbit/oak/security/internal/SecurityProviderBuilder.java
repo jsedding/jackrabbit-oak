@@ -111,7 +111,7 @@ public final class SecurityProviderBuilder {
         if (configuration.contains(AuthorizationConfiguration.NAME)) {
             authorizationParams = configuration.getConfigValue(AuthorizationConfiguration.NAME, EMPTY);
         } else {
-            RestrictionProvider restrictionProvider = new RestrictionProviderImpl();
+            RestrictionProvider restrictionProvider = RestrictionProviderImpl.INSTANCE;
             authorizationParams = ConfigurationParameters.of(AccessControlConstants.PARAM_RESTRICTION_PROVIDER,
                     restrictionProvider);
         }

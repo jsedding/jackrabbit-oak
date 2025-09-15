@@ -79,6 +79,8 @@ public class RestrictionProviderImpl extends AbstractRestrictionProvider {
         DEFINITIONS = Collections.unmodifiableMap(tmp);
     }
 
+    public static final RestrictionProvider INSTANCE = new RestrictionProviderImpl();
+
     public RestrictionProviderImpl() {
         super(DEFINITIONS);
     }
@@ -111,7 +113,7 @@ public class RestrictionProviderImpl extends AbstractRestrictionProvider {
             return CompositePattern.create(patterns);
         }
     }
-    
+
     private static RestrictionPattern createPattern(@NotNull String path, @NotNull String name, @NotNull Iterable<String> values) {
         switch (name) {
             case REP_ITEM_NAMES: return new ItemNamePattern(values);
