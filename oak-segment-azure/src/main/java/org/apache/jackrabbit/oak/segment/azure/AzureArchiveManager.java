@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.Set;
 import java.time.Duration;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -91,8 +92,13 @@ public class AzureArchiveManager implements SegmentArchiveManager {
 
     @Override
     public List<String> listArchives() throws IOException {
+        return listArchives(readBlobContainerClient.listBlobsByHierarchy(rootPrefix).stream().toList());
+    }
+
+    @NotNull
+    List<String> listArchives(@NotNull List<BlobItem> blobItems) throws IOException {
         try {
-            List<String> archiveNames = readBlobContainerClient.listBlobsByHierarchy(rootPrefix).stream()
+            List<String> archiveNames = blobItems.stream()
                     .filter(BlobItem::isPrefix)
                     .map(AzureUtilities::getName)
                     .filter(blobName -> blobName.endsWith(".tar"))
@@ -116,7 +122,7 @@ public class AzureArchiveManager implements SegmentArchiveManager {
 
             return archiveNames;
         } catch (BlobStorageException e) {
-            throw new IOException(e);
+            throw new IOException("Error listing blobs in container " + readBlobContainerClient.getBlobContainerName() + " with prefix " + rootPrefix, e);
         }
     }
 

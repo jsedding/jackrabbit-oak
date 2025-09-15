@@ -19,6 +19,8 @@
 package org.apache.jackrabbit.oak.segment.azure.tar.io;
 
 import com.azure.storage.blob.BlobClient;
+import com.azure.storage.blob.models.BlobErrorCode;
+import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.specialized.AppendBlobClient;
 import org.apache.jackrabbit.oak.commons.Buffer;
 import org.apache.jackrabbit.oak.segment.file.tar.IOWriteAccess;
@@ -26,7 +28,6 @@ import org.apache.jackrabbit.oak.segment.remote.WriteAccessController;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class AzureIOWriteAccess extends AzureIOReadAccess implements IOWriteAccess {
 
@@ -35,82 +36,98 @@ public class AzureIOWriteAccess extends AzureIOReadAccess implements IOWriteAcce
      */
     private final Buffer writeBuffer = Buffer.allocate(4 * 1024 * 1024);
 
-    private final AtomicInteger length;
+    private int length;
 
     private final WriteAccessController writeAccessController;
 
-    private AppendBlobClient writeClient;
+    private volatile AppendBlobClient writeClient;
 
     public AzureIOWriteAccess(String archiveName, BlobClient blobClient, WriteAccessController writeAccessController) {
         super(archiveName, blobClient);
         this.writeAccessController = writeAccessController;
-        this.length = new AtomicInteger(0) ;
+        this.length = 0;
     }
 
     private void initIfNeeded() {
         if (writeClient == null) {
             writeClient = readClient.getAppendBlobClient();
-            writeClient.createIfNotExists();
+            try {
+                writeClient.create();
+            } catch (BlobStorageException e) {
+                if (e.getErrorCode() == BlobErrorCode.BLOB_ALREADY_EXISTS) {
+                    throw new IllegalStateException("Cannot create append blob \"" + writeClient.getBlobName() + "\", it already exists", e);
+                }
+            }
         }
     }
 
     @Override
-    public void write(byte[] data) throws IOException {
-        write(data, 0, data.length);
+    public int write(byte[] data) throws IOException {
+        return write(data, 0, data.length);
     }
 
     @Override
-    public void write(byte[] data, int offset, int length) throws IOException {
+    public int write(byte[] data, int offset, int len) throws IOException {
         writeAccessController.checkWritingAllowed();
         initIfNeeded();
         synchronized (writeBuffer) {
-            if (writeBuffer.remaining() <= length) {
+            if (writeBuffer.remaining() <= len) {
                 sync();
             }
-            writeBuffer.put(data, offset, length);
-            this.length.addAndGet(length);
+            writeBuffer.put(data, offset, len);
+            this.length += len;
         }
+        return len;
     }
 
     @Override
-    public Buffer read(int position, int length) throws IOException {
-        int persistedOffset;
+    public Buffer read(int position, int len) throws IOException {
+        int totalPersistedLength;
         synchronized (writeBuffer) {
-            persistedOffset = this.length.get() - writeBuffer.position();
-
-            int lastBytePos = position + length;
-
-            // read entirely from persistence
-            if (lastBytePos < persistedOffset) {
-                return super.read(position, length);
-            }
-
-            // read entirely from write buffer
-            if (persistedOffset < position) {
-                return Buffer.wrap(writeBuffer.array(), position - persistedOffset, length);
-            }
-
-            // read partially from persistence and from write buffer
-            Buffer bytes = Buffer.allocate(length);
-            bytes.put(super.read(position, persistedOffset - position));
-            bytes.put(writeBuffer.array(), 0, position + length - persistedOffset);
-            bytes.rewind();
-            return bytes;
+            totalPersistedLength = this.length - writeBuffer.position();
         }
+        int lastBytePos = position + len;
+        if (lastBytePos <= totalPersistedLength) {
+            return super.read(position, len);
+        }
+
+        int bufferedLength;
+        byte[] copiedBytes;
+        synchronized (writeBuffer) {
+            // recompute persistedLength in case it changed since it was last computed
+            totalPersistedLength = this.length - writeBuffer.position();
+            bufferedLength = writeBuffer.position();
+            System.arraycopy(writeBuffer.array(), 0, copiedBytes = new byte[bufferedLength], 0, bufferedLength);
+        }
+
+        // read partially from persistence and from write buffer
+        Buffer bytes = Buffer.allocate(len);
+        int lengthOfPersistedPart = totalPersistedLength - position;
+        if (lengthOfPersistedPart > 0) {
+            // read the part that is already persisted
+            bytes.put(super.read(position, lengthOfPersistedPart));
+        }
+        bytes.put(copiedBytes, Math.max(position, totalPersistedLength), len - Math.max(0, lengthOfPersistedPart));
+        bytes.rewind();
+        return bytes;
     }
 
     @Override
     public void sync() throws IOException {
-        if (isDirty()) {
+        if (writeBuffer.position() > 0) {
+            byte[] bytes = null;
+            int offset = -1;
             synchronized (writeBuffer) {
                 if (writeBuffer.position() > 0) {
                     writeAccessController.checkWritingAllowed();
-                    writeClient.appendBlock(
-                            new ByteArrayInputStream(writeBuffer.array(), 0, writeBuffer.position()),
-                            writeBuffer.position()
-                    );
+                    int length = writeBuffer.position();
+                    System.arraycopy(writeBuffer.array(), 0, bytes = new byte[length], 0, length);
                     writeBuffer.position(0);
+                    offset = this.length;
                 }
+            }
+            if (bytes != null && offset != -1) {
+                writeClient.appendBlock(new ByteArrayInputStream(bytes), bytes.length);
             }
         }
     }
@@ -123,7 +140,7 @@ public class AzureIOWriteAccess extends AzureIOReadAccess implements IOWriteAcce
     @Override
     public int length() {
         synchronized (writeBuffer) {
-            return length.get();
+            return this.length;
         }
     }
 

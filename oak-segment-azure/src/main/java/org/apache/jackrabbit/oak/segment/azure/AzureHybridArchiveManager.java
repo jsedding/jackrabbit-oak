@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.Set;
 import java.util.concurrent.ConcurrentSkipListMap;
@@ -40,12 +41,7 @@ import java.util.stream.Collectors;
 
 public class AzureHybridArchiveManager implements SegmentArchiveManager {
 
-    public enum WriteMode {
-        FOLDER,
-        TAR_FILE
-    }
-
-    private final WriteMode writeMode;
+    private final AzurePersistence.WriteMode writeMode;
 
     private final AzureArchiveManager folderArchiveManager;
 
@@ -57,7 +53,7 @@ public class AzureHybridArchiveManager implements SegmentArchiveManager {
 
     private final Map<String, SegmentArchiveManager> archiveToManagerCache = new ConcurrentSkipListMap<>();
 
-    public AzureHybridArchiveManager(WriteMode writeMode, BlobContainerClient readClient, BlobContainerClient writeClient, String rootPrefix, IOMonitor ioMonitor, FileStoreMonitor fileStoreMonitor, WriteAccessController writeAccessController) {
+    public AzureHybridArchiveManager(AzurePersistence.WriteMode writeMode, BlobContainerClient readClient, BlobContainerClient writeClient, String rootPrefix, IOMonitor ioMonitor, FileStoreMonitor fileStoreMonitor, WriteAccessController writeAccessController) {
         this.writeMode = writeMode;
         this.folderArchiveManager = new AzureArchiveManager(readClient, writeClient, rootPrefix, ioMonitor, fileStoreMonitor, writeAccessController);
         this.tarArchiveManager = new AzureTarArchiveManager(readClient, writeClient, rootPrefix, ioMonitor, fileStoreMonitor, writeAccessController);
@@ -69,7 +65,7 @@ public class AzureHybridArchiveManager implements SegmentArchiveManager {
     public @NotNull List<String> listArchives() throws IOException {
         try {
             archiveToManagerCache.clear();
-            List<BlobItem> blobItems = readClient.listBlobsByHierarchy(rootPrefix).stream().collect(Collectors.toUnmodifiableList());
+            List<BlobItem> blobItems = readClient.listBlobsByHierarchy(rootPrefix).stream().toList();
             folderArchiveManager.listArchives(blobItems).forEach(name -> archiveToManagerCache.put(name, folderArchiveManager));
             AzureTarArchiveManager.listArchives(blobItems).forEach(name -> archiveToManagerCache.put(name, tarArchiveManager));
             return new ArrayList<>(archiveToManagerCache.keySet());
@@ -139,9 +135,14 @@ public class AzureHybridArchiveManager implements SegmentArchiveManager {
     }
 
     private SegmentArchiveManager getDelegate(String archiveName) {
-        return archiveToManagerCache.computeIfAbsent(archiveName, n -> {
-            boolean isTarArchive = readClient.getBlobClient(rootPrefix + archiveName).exists();
-            return isTarArchive ? tarArchiveManager : folderArchiveManager;
-        });
+        SegmentArchiveManager delegate = archiveToManagerCache.computeIfAbsent(archiveName, name ->
+                readClient.listBlobsByHierarchy(rootPrefix + name).stream()
+                        .filter(blobItem -> Objects.equals(AzureUtilities.getName(blobItem), name))
+                        .findFirst()
+                        .map(BlobItem::isPrefix)
+                        .map(isFolderArchive -> isFolderArchive ? folderArchiveManager : tarArchiveManager)
+                        .orElse(null));
+        // apply default _after_ the map lookup, in order to avoid caching non-existing archives
+        return Objects.requireNonNullElse(delegate, writeMode == AzurePersistence.WriteMode.FOLDER ? folderArchiveManager : tarArchiveManager);
     }
 }

@@ -50,7 +50,7 @@ public class SegmentTarWriter implements SegmentArchiveWriter {
 
     private static final Logger log = LoggerFactory.getLogger(SegmentTarWriter.class);
 
-    private static final byte[] ZERO_BYTES = new byte[BLOCK_SIZE];
+    static final byte[] ZERO_BYTES = new byte[BLOCK_SIZE];
 
     private final FileStoreMonitor monitor;
 
@@ -60,7 +60,6 @@ public class SegmentTarWriter implements SegmentArchiveWriter {
      * allow {@link #flush()} to work concurrently with normal reads and
      * writes, but not with a concurrent {@link #close()}.
      */
-    // private final File file;
     private final IOWriteAccess io;
 
     private final IOMonitor ioMonitor;
@@ -111,15 +110,17 @@ public class SegmentTarWriter implements SegmentArchiveWriter {
         }
 
         @Override
-        public void write(byte[] data) throws IOException {
+        public int write(byte[] data) throws IOException {
             initIfNeeded();
             access.write(data);
+            return data.length;
         }
 
         @Override
-        public void write(byte[] data, int offset, int length) throws IOException {
+        public int write(byte[] data, int offset, int length) throws IOException {
             initIfNeeded();
             access.write(data, offset, length);
+            return length - offset;
         }
 
         @Override
@@ -185,30 +186,16 @@ public class SegmentTarWriter implements SegmentArchiveWriter {
 
         log.debug("Writing segment {} to {}", uuid, io);
 
-        int padding = getPaddingSize(size);
-
-        long initialLength = io.length();
-
-        io.write(header);
-
-        long dataOffset = io.length();
+        int dataOffset = io.length() + header.length;
 
         File file = new File(io.getName());
         ioMonitor.beforeSegmentWrite(file, msb, lsb, size);
         Stopwatch stopwatch = Stopwatch.createStarted();
-        io.write(data, offset, size);
+        monitor.written(io.appendSegmentEntry(header, data, offset, size, getPaddingSize(size)));
         ioMonitor.afterSegmentWrite(file, msb, lsb, size, stopwatch.elapsed(TimeUnit.NANOSECONDS));
 
-        if (padding > 0) {
-            io.write(ZERO_BYTES, 0, padding);
-        }
-
-        long currentLength = io.length();
-        monitor.written(currentLength - initialLength);
-
-        length = currentLength;
-
-        index.put(new UUID(msb, lsb), new SimpleIndexEntry(msb, lsb, (int) dataOffset, size, generation, fullGeneration, compacted));
+        length = io.length();
+        index.put(uuid, new SimpleIndexEntry(msb, lsb, dataOffset, size, generation, fullGeneration, compacted));
     }
 
     @Override
@@ -230,13 +217,7 @@ public class SegmentTarWriter implements SegmentArchiveWriter {
     public void writeGraph(byte[] data) throws IOException {
         int paddingSize = getPaddingSize(data.length);
         byte[] header = newEntryHeader(io.getName() + ".gph", data.length + paddingSize);
-        io.write(header);
-        if (paddingSize > 0) {
-            io.write(ZERO_BYTES, 0, paddingSize);
-        }
-        io.write(data);
-        monitor.written(header.length + paddingSize + data.length);
-
+        monitor.written(io.appendEntry(header, data, paddingSize));
         length = io.length();
     }
 
@@ -244,13 +225,7 @@ public class SegmentTarWriter implements SegmentArchiveWriter {
     public void writeBinaryReferences(byte[] data) throws IOException {
         int paddingSize = getPaddingSize(data.length);
         byte[] header = newEntryHeader(io.getName() + ".brf", data.length + paddingSize);
-        io.write(header);
-        if (paddingSize > 0) {
-            io.write(ZERO_BYTES, 0, paddingSize);
-        }
-        io.write(data);
-        monitor.written(header.length + paddingSize + data.length);
-
+        monitor.written(io.appendEntry(header, data, paddingSize));
         length = io.length();
     }
 
@@ -282,22 +257,16 @@ public class SegmentTarWriter implements SegmentArchiveWriter {
         byte[] data = writer.write();
 
         byte[] header = newEntryHeader(io.getName() + ".idx", data.length);
-        io.write(header);
-        io.write(data);
-        monitor.written(header.length + data.length);
-
+        monitor.written(io.appendEntry(header, data, 0));
         length = io.length();
     }
 
     @Override
     public void close() throws IOException {
         writeIndex();
-
-        io.write(ZERO_BYTES);
-        io.write(ZERO_BYTES);
+        monitor.written(io.write(ZERO_BYTES) + io.write(ZERO_BYTES));
+        length = io.length();
         io.close();
-
-        monitor.written(BLOCK_SIZE * 2);
     }
 
     @Override

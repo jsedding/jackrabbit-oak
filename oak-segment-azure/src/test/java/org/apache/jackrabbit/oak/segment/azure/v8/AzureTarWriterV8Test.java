@@ -50,22 +50,4 @@ public class AzureTarWriterV8Test extends TarWriterTest {
         AzureArchiveManagerV8 azureArchiveManagerV8 = new AzureArchiveManagerV8(container.getDirectoryReference("oak"), new IOMonitorAdapter(), monitor, writeAccessController);
         return azureArchiveManagerV8;
     }
-
-    @NotNull
-    @Override
-    protected SegmentArchiveManager getFailingSegmentArchiveManager() throws Exception {
-        final WriteAccessController writeAccessController = new WriteAccessController();
-        writeAccessController.enableWriting();
-        return new AzureArchiveManagerV8(container.getDirectoryReference("oak"), new IOMonitorAdapter(), monitor, writeAccessController) {
-            @Override
-            public SegmentArchiveWriter create(String archiveName) throws IOException {
-                return new AzureSegmentArchiveWriterV8(getDirectory(archiveName), ioMonitor, monitor, writeAccessController) {
-                    @Override
-                    public void writeGraph(@NotNull byte[] data) throws IOException {
-                        throw new IOException("test");
-                    }
-                };
-            }
-        };
-    }
 }

@@ -79,20 +79,20 @@ public class AzureTarArchiveManager implements SegmentArchiveManager {
 
     @Override
     public @NotNull List<String> listArchives() throws IOException {
-        return listArchives(readBlobContainerClient.listBlobsByHierarchy(rootPrefix).stream().collect(Collectors.toUnmodifiableList()));
+        try {
+            return listArchives(readBlobContainerClient.listBlobsByHierarchy(rootPrefix).stream().toList());
+        } catch (BlobStorageException e) {
+            throw new IOException("Error listing blobs in container " + readBlobContainerClient.getBlobContainerName() + " with prefix " + rootPrefix, e);
+        }
     }
 
     public static @NotNull List<String> listArchives(@NotNull List<BlobItem> blobItems) throws IOException {
-        try {
-            return blobItems.stream()
-                    .filter(Predicate.not(BlobItem::isPrefix))
-                    .filter(b -> b.getProperties().getContentLength() > 0)
-                    .map(AzureUtilities::getName)
-                    .filter(blobName -> blobName.endsWith(".tar"))
-                    .collect(Collectors.toList());
-        } catch (BlobStorageException e) {
-            throw new IOException(e);
-        }
+        return blobItems.stream()
+                .filter(Predicate.not(BlobItem::isPrefix))
+                .filter(b -> b.getProperties().getContentLength() > 0)
+                .map(AzureUtilities::getName)
+                .filter(blobName -> blobName.endsWith(".tar"))
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -108,8 +108,14 @@ public class AzureTarArchiveManager implements SegmentArchiveManager {
 
     @Override
     public @NotNull SegmentArchiveWriter create(@NotNull String archiveName) throws IOException {
+        WriteAccessController accessController = writeAccessController;
+        // allow writing to read-only backup files to enable read-only recovery
+        if (archiveName.endsWith(".ro.bak")) {
+            accessController = new WriteAccessController();
+            accessController.enableWriting();
+        }
         return new SegmentTarWriter(
-                new AzureIOWriteAccess(archiveName, getArchiveClient(archiveName), writeAccessController),
+                new AzureIOWriteAccess(archiveName, getArchiveClient(archiveName), accessController),
                 fileStoreMonitor,
                 ioMonitor
         );

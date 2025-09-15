@@ -17,7 +17,6 @@
 package org.apache.jackrabbit.oak.segment.azure;
 
 import com.azure.storage.blob.BlobContainerClient;
-import com.azure.storage.blob.models.BlobItem;
 import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.models.ListBlobsOptions;
 import com.azure.storage.blob.specialized.AppendBlobClient;
@@ -40,8 +39,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.apache.jackrabbit.oak.segment.azure.AzureHybridArchiveManager.WriteMode.FOLDER;
-import static org.apache.jackrabbit.oak.segment.azure.AzureHybridArchiveManager.WriteMode.TAR_FILE;
+import static org.apache.jackrabbit.oak.segment.azure.AzurePersistence.WriteMode.FOLDER;
 
 public class AzurePersistence implements SegmentNodeStorePersistence {
     private static final Logger log = LoggerFactory.getLogger(AzurePersistence.class);
@@ -62,7 +60,7 @@ public class AzurePersistence implements SegmentNodeStorePersistence {
 
     private final Integer journalLineLimit;
 
-    private final AzureHybridArchiveManager.WriteMode writeMode;
+    private final WriteMode writeMode;
 
     public AzurePersistence(BlobContainerClient blobContainerClient, String rootPrefix) {
         this(blobContainerClient, blobContainerClient, blobContainerClient, rootPrefix);
@@ -72,11 +70,11 @@ public class AzurePersistence implements SegmentNodeStorePersistence {
         this(readBlobContainerClient, writeBlobContainerClient, noRetryBlobContainerClient, rootPrefix, FOLDER);
     }
 
-    public AzurePersistence(BlobContainerClient readBlobContainerClient, BlobContainerClient writeBlobContainerClient, BlobContainerClient noRetryBlobContainerClient, String rootPrefix, AzureHybridArchiveManager.WriteMode writeMode) {
+    public AzurePersistence(BlobContainerClient readBlobContainerClient, BlobContainerClient writeBlobContainerClient, BlobContainerClient noRetryBlobContainerClient, String rootPrefix, WriteMode writeMode) {
         this(readBlobContainerClient, writeBlobContainerClient, noRetryBlobContainerClient, rootPrefix, writeMode, null, null);
     }
 
-    public AzurePersistence(BlobContainerClient readBlobContainerClient, BlobContainerClient writeBlobContainerClient, BlobContainerClient noRetryBlobContainerClient, String rootPrefix, AzureHybridArchiveManager.WriteMode writeMode, AzureHttpRequestLoggingPolicy azureHttpRequestLoggingPolicy, Integer journalLineLimit) {
+    public AzurePersistence(BlobContainerClient readBlobContainerClient, BlobContainerClient writeBlobContainerClient, BlobContainerClient noRetryBlobContainerClient, String rootPrefix, WriteMode writeMode, AzureHttpRequestLoggingPolicy azureHttpRequestLoggingPolicy, Integer journalLineLimit) {
         this.readBlobContainerClient = readBlobContainerClient;
         this.writeBlobContainerClient = writeBlobContainerClient;
         this.noRetryBlobContainerClient = noRetryBlobContainerClient;
@@ -176,5 +174,10 @@ public class AzurePersistence implements SegmentNodeStorePersistence {
 
     public void setWriteAccessController(WriteAccessController writeAccessController) {
         this.writeAccessController = writeAccessController;
+    }
+
+    public enum WriteMode {
+        FOLDER,
+        TAR_FILE
     }
 }

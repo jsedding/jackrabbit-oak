@@ -20,11 +20,31 @@ package org.apache.jackrabbit.oak.segment.file.tar;
 
 import java.io.IOException;
 
+import static org.apache.jackrabbit.oak.segment.file.tar.SegmentTarWriter.ZERO_BYTES;
+
 public interface IOWriteAccess extends IOReadAccess {
 
-    void write(byte[] data) throws IOException;
+    default int appendSegmentEntry(byte[] header, byte[] data, int offset, int size, int padding) throws IOException {
+        int bytesWritten = write(header);
+        bytesWritten += write(data, offset, size);
+        if (padding > 0) {
+            bytesWritten += write(ZERO_BYTES, 0, padding);
+        }
+        return bytesWritten;
+    }
 
-    void write(byte[] data, int offset, int length) throws IOException;
+    default int appendEntry(byte[] header, byte[] data, int padding) throws IOException {
+        int bytesWritten = write(header);
+        if (padding > 0) {
+            bytesWritten += write(ZERO_BYTES, 0, padding);
+        }
+        bytesWritten += write(data);
+        return bytesWritten;
+    }
+
+    int write(byte[] data) throws IOException;
+
+    int write(byte[] data, int offset, int length) throws IOException;
 
     void sync() throws IOException;
 

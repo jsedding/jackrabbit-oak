@@ -54,9 +54,10 @@ class MutableRecordNumbers implements RecordNumbers {
     }
 
     private static int getRecordEntry(int[] entries, int index) {
-        return index * 2 >= entries.length
+        int i = index * 2;
+        return i >= entries.length
             ? -1
-            : entries[index * 2];
+            : entries[i];
     }
 
     @NotNull
