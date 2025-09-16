@@ -135,7 +135,7 @@ public class SegmentTarWriter implements SegmentArchiveWriter {
         }
 
         @Override
-        public void sync() throws IOException {
+        public void flush() throws IOException {
             initIfNeeded();
             access.getFD().sync();
         }
@@ -276,7 +276,7 @@ public class SegmentTarWriter implements SegmentArchiveWriter {
 
     @Override
     public void flush() throws IOException {
-        io.sync();
+        io.flush();
     }
 
     @Override

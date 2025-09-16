@@ -72,7 +72,7 @@ public class AzureIOWriteAccess extends AzureIOReadAccess implements IOWriteAcce
         initIfNeeded();
         synchronized (writeBuffer) {
             if (writeBuffer.remaining() <= len) {
-                sync();
+                flush();
             }
             writeBuffer.put(data, offset, len);
             this.length += len;
@@ -81,39 +81,54 @@ public class AzureIOWriteAccess extends AzureIOReadAccess implements IOWriteAcce
     }
 
     @Override
-    public Buffer read(int position, int len) throws IOException {
-        int totalPersistedLength;
+    public Buffer read(int startOffsetInclusive, int len) throws IOException {
+        int endOffsetExclusive = startOffsetInclusive + len;
+        int persistedEndOffsetExclusive;
         synchronized (writeBuffer) {
-            totalPersistedLength = this.length - writeBuffer.position();
-        }
-        int lastBytePos = position + len;
-        if (lastBytePos <= totalPersistedLength) {
-            return super.read(position, len);
+            persistedEndOffsetExclusive = this.length - writeBuffer.position();
         }
 
-        int bufferedLength;
+        if (persistedEndOffsetExclusive >= endOffsetExclusive) {
+            return super.read(startOffsetInclusive, len);
+        }
+
+        int bufferEndOffsetExclusive;
         byte[] copiedBytes;
         synchronized (writeBuffer) {
             // recompute persistedLength in case it changed since it was last computed
-            totalPersistedLength = this.length - writeBuffer.position();
-            bufferedLength = writeBuffer.position();
+            persistedEndOffsetExclusive = this.length - writeBuffer.position();
+            bufferEndOffsetExclusive = this.length;
+            int bufferedLength = bufferEndOffsetExclusive - persistedEndOffsetExclusive;
             System.arraycopy(writeBuffer.array(), 0, copiedBytes = new byte[bufferedLength], 0, bufferedLength);
         }
 
-        // read partially from persistence and from write buffer
         Buffer bytes = Buffer.allocate(len);
-        int lengthOfPersistedPart = totalPersistedLength - position;
-        if (lengthOfPersistedPart > 0) {
+        if (startOffsetInclusive < persistedEndOffsetExclusive) {
             // read the part that is already persisted
-            bytes.put(super.read(position, lengthOfPersistedPart));
+            int readFromPersistence = persistedEndOffsetExclusive - startOffsetInclusive;
+            bytes.put(super.read(startOffsetInclusive, readFromPersistence));
+            int effectiveLength = len - readFromPersistence;
+            try {
+                bytes.put(copiedBytes, 0, effectiveLength);
+            } catch (IndexOutOfBoundsException e) {
+                throw new IllegalStateException("Unexpected end of write buffer: " + copiedBytes.length + " -> 0:" + effectiveLength, e);
+            }
+        } else {
+            // read fully from write buffer
+            int pos = startOffsetInclusive - persistedEndOffsetExclusive;
+            try {
+                bytes.put(copiedBytes, pos, len);
+            } catch (IndexOutOfBoundsException e) {
+                throw new IllegalStateException("Unexpected end of write buffer: " + copiedBytes.length + " -> " + pos + ":" + len, e);
+            }
         }
-        bytes.put(copiedBytes, Math.max(position, totalPersistedLength), len - Math.max(0, lengthOfPersistedPart));
+
         bytes.rewind();
         return bytes;
     }
 
     @Override
-    public void sync() throws IOException {
+    public void flush() throws IOException {
         if (writeBuffer.position() > 0) {
             byte[] bytes = null;
             int offset = -1;
@@ -146,6 +161,6 @@ public class AzureIOWriteAccess extends AzureIOReadAccess implements IOWriteAcce
 
     @Override
     public void close() throws IOException {
-        sync();
+        flush();
     }
 }

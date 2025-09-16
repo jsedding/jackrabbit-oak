@@ -46,7 +46,7 @@ public interface IOWriteAccess extends IOReadAccess {
 
     int write(byte[] data, int offset, int length) throws IOException;
 
-    void sync() throws IOException;
+    void flush() throws IOException;
 
     boolean isDirty();
 }
